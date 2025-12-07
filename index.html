@@ -39,16 +39,28 @@
         const file = event.target.files[0];
         if (!file) return;
 
+        // Reset UI
+        status.textContent = "Compressing... please wait.";
+        document.getElementById('downloadLink').style.display = 'none';
+        
         // Convert KB to Bytes
         const MAX_SIZE = targetSizeInput.value * 1024; 
         
-        status.textContent = "Compressing... please wait.";
         document.getElementById('beforeStats').textContent = `Original: ${(file.size / 1024).toFixed(2)} KB`;
 
         try {
-            const compressedBlob = await compressToTargetSize(file, MAX_SIZE);
+            // We start with the original dimensions
+            const bitmap = await createImageBitmap(file);
+            const canvas = document.createElement('canvas');
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(bitmap, 0, 0);
+
+            // Start the smart compression process
+            const compressedBlob = await compressRecursive(canvas, MAX_SIZE);
             
-            // Display Result
+            // --- UI Update Section ---
             const url = URL.createObjectURL(compressedBlob);
             const img = document.getElementById('compressedImage');
             img.src = url;
@@ -56,7 +68,8 @@
             
             document.getElementById('afterStats').innerHTML = `
                 Compressed: <b>${(compressedBlob.size / 1024).toFixed(2)} KB</b> 
-                (Quality used: ${compressedBlob.qualityUsed})`; // Custom property for display
+                (Quality: ${(compressedBlob.quality * 100).toFixed(0)}%, 
+                 Res: ${compressedBlob.width}x${compressedBlob.height})`;
             
             const link = document.getElementById('downloadLink');
             link.href = url;
@@ -66,69 +79,64 @@
             
             status.textContent = "Done!";
         } catch (error) {
+            console.error(error);
             status.textContent = "Error: " + error.message;
         }
     });
 
-    // Core Logic
-    async function compressToTargetSize(file, targetSize) {
-        // Load image to get dimensions
-        const bitmap = await createImageBitmap(file);
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        let width = bitmap.width;
-        let height = bitmap.height;
-        
-        // Initial Draw
-        canvas.width = width;
-        canvas.height = height;
-        ctx.drawImage(bitmap, 0, 0, width, height);
-
-        // 1. Binary Search Strategy for Quality
-        let min = 0;
-        let max = 1;
+    /**
+     * Recursive function that tries to compress by quality first.
+     * If quality drops too low (blurriness), it resizes the canvas and retries.
+     */
+    async function compressRecursive(canvas, targetSize) {
+        // 1. Binary search for best quality at current resolution
+        let min = 0.0;
+        let max = 1.0;
         let bestBlob = null;
         let bestQuality = 0;
-        
-        // Attempt compression loop
-        // We limit iterations to prevent infinite loops (approx 10 steps covers 0.00 to 1.00 precision)
-        for (let i = 0; i < 15; i++) {
+
+        // Try to find the highest quality that fits
+        for (let i = 0; i < 10; i++) { // 10 iterations is enough precision
             const mid = (min + max) / 2;
             const blob = await getCanvasBlob(canvas, mid);
             
             if (blob.size <= targetSize) {
-                // It fits! Try to increase quality to see if we can get closer to limit
                 bestBlob = blob;
                 bestQuality = mid;
-                min = mid; 
+                min = mid; // Try for higher quality
             } else {
-                // Too big, decrease quality
-                max = mid; 
+                max = mid; // Needs lower quality
             }
         }
 
-        // 2. FALLBACK: Smart Resizing
-        // If even at extremely low quality (e.g. 0.1) the file is still too big,
-        // we must resize the dimensions (scale down) rather than creating a blocky mess.
-        if (!bestBlob || (bestBlob.size > targetSize)) {
-            const scaleFactor = 0.7; // Reduce size by 30% each step
-            canvas.width = canvas.width * scaleFactor;
-            canvas.height = canvas.height * scaleFactor;
-            
-            // Redraw at new size
-            ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-            
-            // Recursively try again with smaller dimensions
-            return compressToTargetSize(await getCanvasBlob(canvas, 1), targetSize);
+        // 2. Decision Gate:
+        // If we found a valid blob and the quality isn't "garbage" (e.g. > 0.1), return it.
+        // OR if the canvas is already very small (e.g. < 300px), we just return what we have to stop infinite loops.
+        if ((bestBlob && bestQuality > 0.15) || canvas.width < 300) {
+            // Attach metadata for the UI to display
+            bestBlob.quality = bestQuality;
+            bestBlob.width = canvas.width;
+            bestBlob.height = canvas.height;
+            return bestBlob;
         }
 
-        // Attach the final quality used for debugging/display
-        bestBlob.qualityUsed = bestQuality.toFixed(2);
-        return bestBlob;
+        // 3. Resize Strategy (If quality is too low or file still too big):
+        // If we reached here, the file is likely still too big or looks bad at current resolution.
+        // Scale down by 25% and recurse.
+        const newCanvas = document.createElement('canvas');
+        const scaleFactor = 0.75;
+        newCanvas.width = canvas.width * scaleFactor;
+        newCanvas.height = canvas.height * scaleFactor;
+        
+        const ctx = newCanvas.getContext('2d');
+        // Draw the previous canvas onto the smaller one
+        ctx.drawImage(canvas, 0, 0, newCanvas.width, newCanvas.height);
+
+        // Recurse with the smaller canvas
+        return await compressRecursive(newCanvas, targetSize);
     }
 
-    // Helper to wrap canvas.toBlob in a Promise
+    // Helper: Promisify canvas.toBlob
     function getCanvasBlob(canvas, quality) {
         return new Promise((resolve) => {
             canvas.toBlob((blob) => {
