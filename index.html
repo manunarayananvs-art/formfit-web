@@ -3,277 +3,278 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FormFit - Crop & Compress</title>
+    <title>FormFit Pro - History Edition</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
     
     <style>
-        body { background-color: #f8f9fa; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; padding-bottom: 80px; }
         .container { max-width: 600px; }
         
         /* Drop Zone */
-        .drop-zone { border: 2px dashed #0d6efd; border-radius: 10px; padding: 40px; text-align: center; background: white; cursor: pointer; transition: 0.3s; }
-        .drop-zone:hover { background-color: #e9ecef; }
+        .drop-zone { border: 2px dashed #0d6efd; border-radius: 12px; padding: 40px 20px; text-align: center; background: white; cursor: pointer; transition: 0.3s; }
+        .drop-zone:hover { background-color: #eef5ff; border-color: #0b5ed7; }
         
-        /* Crop Area */
-        .crop-container { 
-            height: 400px; 
-            background: #333; 
-            margin-bottom: 20px; 
-            border-radius: 5px; 
-            overflow: hidden;
-        }
+        /* Crop & Preview */
+        .crop-wrapper { height: 400px; background: #333; margin-bottom: 15px; border-radius: 8px; overflow: hidden; }
         img { max-width: 100%; }
-
-        /* Preview Area */
-        .preview-container { 
-            position: relative; 
-            min-height: 200px; 
-            background: #eee;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 5px;
-            overflow: hidden;
-        }
-        .preview-img { max-width: 100%; display: block; }
+        .preview-container { min-height: 200px; background: #e9ecef; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #dee2e6; }
         
-        .badge-safe { background-color: #d1e7dd; color: #0f5132; padding: 5px 10px; border-radius: 20px; font-size: 0.8em; }
-        .compare-btn { user-select: none; font-weight: bold; }
+        /* History Section */
+        .history-item { background: white; border-radius: 8px; padding: 10px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 10px; }
+        .history-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; }
+        .history-meta { flex-grow: 1; font-size: 0.9em; }
+        .badge-safe { background-color: #d1e7dd; color: #0f5132; padding: 6px 12px; border-radius: 20px; font-size: 0.85em; }
     </style>
 </head>
 <body>
 
-<div class="container mt-4">
+<div class="container mt-5">
+    
     <div class="text-center mb-4">
-        <h1>🖼️ FormFit</h1>
-        <p class="text-muted">Crop & Compress securely.</p>
-        <span class="badge-safe">🔒 Local Processing</span>
+        <h1 class="fw-bold">🖼️ FormFit <span class="text-primary">History</span></h1>
+        <p class="text-muted mb-2">Compress, Download, and Resume later.</p>
+        <span class="badge-safe">🔒 Local Storage Active</span>
     </div>
 
-    <div id="uploadStep" class="drop-zone mb-4" onclick="document.getElementById('imageInput').click()">
-        <h4>Tap to Select Image</h4>
+    <div id="uploadStep" class="drop-zone shadow-sm" onclick="document.getElementById('imageInput').click()">
+        <div class="mb-3" style="font-size: 3rem;">📂</div>
+        <h4>Tap to Upload Document</h4>
         <p class="text-muted small">Supports JPG, PNG, WEBP</p>
         <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
     </div>
 
-    <div id="cropStep" class="card p-3 shadow-sm" style="display: none;">
-        <h5 class="mb-3">✂️ Crop Image</h5>
-        <div class="crop-container">
+    <div id="cropStep" class="card p-3 shadow-sm border-0" style="display: none;">
+        <label class="form-label fw-bold">Use Case Preset</label>
+        <select id="presetSelect" class="form-select mb-3" onchange="applyPreset(this.value)">
+            <option value="passport_in">🇮🇳 Indian Passport (50KB)</option>
+            <option value="passport_us">🇺🇸 US Visa (240KB)</option>
+            <option value="signature">✍️ Signature (20KB)</option>
+            <option value="custom">🛠️ Custom</option>
+        </select>
+
+        <div class="crop-wrapper">
             <img id="cropImage" src="">
         </div>
+
         <div class="d-flex gap-2">
-            <button class="btn btn-secondary flex-grow-1" onclick="resetApp()">Cancel</button>
-            <button class="btn btn-primary flex-grow-1" onclick="confirmCrop()">Done & Compress</button>
+            <button class="btn btn-outline-secondary flex-grow-1" onclick="resetApp()">Cancel</button>
+            <button class="btn btn-primary flex-grow-1" onclick="confirmCrop()">✅ Compress & Save</button>
         </div>
     </div>
 
-    <div id="resultStep" class="card p-3 shadow-sm" style="display: none;">
-        
+    <div id="resultStep" class="card p-3 shadow-sm border-0" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Success!</h5>
+            <span class="badge bg-success" id="finalSizeBadge">-- KB</span>
+        </div>
+
         <div class="preview-container mb-3">
-            <img id="displayImage" class="preview-img" src="" alt="Result">
+            <img id="displayImage" style="max-width:100%; max-height:300px;" src="">
         </div>
 
-        <div class="row mb-2">
-            <div class="col-6 text-center">
-                <h6>Original (Cropped)</h6>
-                <p id="originalInfo" class="small text-danger"></p>
-            </div>
-            <div class="col-6 text-center">
-                <h6>Compressed</h6>
-                <p id="compressedSize" class="small text-success">Processing...</p>
-            </div>
-        </div>
-
-        <label class="form-label fw-bold">Target Size (KB)</label>
-        <div class="d-flex gap-2 mb-3">
-            <button class="btn btn-outline-secondary btn-sm" onclick="updateTarget(20)">20KB</button>
-            <button class="btn btn-outline-secondary btn-sm" onclick="updateTarget(50)">50KB</button>
-            <button class="btn btn-outline-secondary btn-sm" onclick="updateTarget(100)">100KB</button>
-        </div>
-        
-        <input type="range" class="form-range" id="sizeSlider" min="10" max="500" step="10" value="50" oninput="updateSliderVal(this.value)">
-        <p class="text-center small">Target: <span id="sliderValue">50</span> KB</p>
-
-        <div class="d-flex gap-2 flex-column">
-            <div class="d-flex gap-2">
-                <button class="btn btn-outline-primary w-50" onclick="reCompress()">Retry</button>
-                <button id="compareBtn" class="btn btn-warning w-50 compare-btn" 
-                    onmousedown="showOriginal()" onmouseup="showCompressed()" 
-                    onmouseleave="showCompressed()"
-                    ontouchstart="showOriginal()" ontouchend="showCompressed()">
-                    Hold to Compare
-                </button>
-            </div>
-            
-            <a id="downloadLink" href="#" download="formfit_compressed.jpg" class="btn btn-success w-100 mt-2">⬇️ Download Image</a>
-            <button class="btn btn-link text-muted btn-sm mt-1" onclick="resetApp()">Start Over</button>
-        </div>
-        
-        <p id="qualityInfo" class="text-center small text-muted mt-2 mb-0"></p>
+        <a id="downloadLink" href="#" class="btn btn-success w-100 py-2 shadow-sm mb-2">⬇️ Download Image</a>
+        <button class="btn btn-link text-muted btn-sm w-100" onclick="resetApp()">Process Another Image</button>
     </div>
+
+    <div class="mt-5">
+        <h6 class="text-muted text-uppercase fw-bold small mb-3">💾 Recent Local Files</h6>
+        <div id="historyList">
+            <p class="text-center text-muted small">No saved files yet.</p>
+        </div>
+        <button onclick="clearHistory()" class="btn btn-sm btn-outline-danger w-100 mt-2" id="clearBtn" style="display:none">Clear All History</button>
+    </div>
+
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <script>
-    let cropper = null;
-    let croppedCanvas = null;   // The high-res cropped image (Canvas)
-    let compressedURL = null;   // The final compressed blob URL
-    let originalURL = null;     // The cropped image URL (for comparison)
+    // --- DATABASE (IndexedDB) MODULE ---
+    const DB_NAME = 'FormFitDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'files';
 
-    // --- STEP 1: Upload & Init Cropper ---
+    const db = {
+        init: () => {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME, DB_VERSION);
+                req.onupgradeneeded = (e) => {
+                    if (!e.target.result.objectStoreNames.contains(STORE_NAME)) {
+                        e.target.result.createObjectStore(STORE_NAME, { keyPath: 'id' });
+                    }
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        },
+        save: async (fileData) => {
+            const dbRef = await db.init();
+            const tx = dbRef.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).put(fileData);
+            return tx.complete;
+        },
+        getAll: async () => {
+            const dbRef = await db.init();
+            return new Promise((resolve) => {
+                const tx = dbRef.transaction(STORE_NAME, 'readonly');
+                const req = tx.objectStore(STORE_NAME).getAll();
+                req.onsuccess = () => resolve(req.result);
+            });
+        },
+        delete: async (id) => {
+            const dbRef = await db.init();
+            const tx = dbRef.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).delete(id);
+            return tx.complete;
+        },
+        clear: async () => {
+            const dbRef = await db.init();
+            const tx = dbRef.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).clear();
+            return tx.complete;
+        }
+    };
+
+    // --- MAIN LOGIC ---
+    let cropper = null;
+    let currentPresetSize = 50;
+
+    // Load History on Startup
+    document.addEventListener('DOMContentLoaded', loadHistoryUI);
+
     function handleImageUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
 
         const url = URL.createObjectURL(file);
-        const imageElement = document.getElementById('cropImage');
-        imageElement.src = url;
-
-        // Switch UI
+        document.getElementById('cropImage').src = url;
+        
+        // Switch Views
         document.getElementById('uploadStep').style.display = 'none';
         document.getElementById('cropStep').style.display = 'block';
 
-        // Destroy old cropper if exists
         if (cropper) cropper.destroy();
-
-        // Init Cropper
-        cropper = new Cropper(imageElement, {
+        cropper = new Cropper(document.getElementById('cropImage'), {
             viewMode: 1,
-            autoCropArea: 1,
+            autoCropArea: 0.9,
+            aspectRatio: 1 // Default
         });
+        applyPreset('passport_in');
     }
 
-    // --- STEP 2: Confirm Crop ---
-    function confirmCrop() {
-        // Get the cropped canvas
-        croppedCanvas = cropper.getCroppedCanvas();
+    function applyPreset(val) {
+        const sizes = { 'passport_in': 50, 'passport_us': 240, 'signature': 20, 'custom': 100 };
+        const ratios = { 'passport_in': 1, 'passport_us': 1, 'signature': NaN, 'custom': NaN };
+        
+        currentPresetSize = sizes[val];
+        if(cropper) cropper.setAspectRatio(ratios[val]);
+    }
+
+    async function confirmCrop() {
+        const croppedCanvas = cropper.getCroppedCanvas({ maxWidth: 1500, maxHeight: 1500 });
         if (!croppedCanvas) return;
 
-        // Create a URL for the "Original" (Cropped) version for comparison
-        croppedCanvas.toBlob((blob) => {
-            if (originalURL) URL.revokeObjectURL(originalURL);
-            originalURL = URL.createObjectURL(blob);
-            document.getElementById('originalInfo').innerText = "~" + (blob.size/1024).toFixed(0) + " KB";
-        });
-
-        // Switch UI
+        // Compress
         document.getElementById('cropStep').style.display = 'none';
         document.getElementById('resultStep').style.display = 'block';
-
-        // Trigger Compression
-        reCompress();
-    }
-
-    // --- STEP 3: Compression Logic ---
-    function updateTarget(val) {
-        document.getElementById('sizeSlider').value = val;
-        updateSliderVal(val);
-        reCompress();
-    }
-
-    function updateSliderVal(val) {
-        document.getElementById('sliderValue').innerText = val;
-    }
-
-    async function reCompress() {
-        if (!croppedCanvas) return;
         
-        const targetKB = document.getElementById('sizeSlider').value;
-        const targetBytes = targetKB * 1024;
+        const targetBytes = currentPresetSize * 1024;
+        const resultBlob = await compressRecursive(croppedCanvas, targetBytes);
 
-        // UI Feedback
-        document.getElementById('compressedSize').innerText = "Compressing...";
-        document.getElementById('displayImage').style.opacity = '0.5';
+        // UI Update
+        const url = URL.createObjectURL(resultBlob);
+        document.getElementById('displayImage').src = url;
+        const kbSize = (resultBlob.size / 1024).toFixed(1);
+        document.getElementById('finalSizeBadge').innerText = `${kbSize} KB`;
+        
+        const dl = document.getElementById('downloadLink');
+        dl.href = url;
+        dl.download = `formfit_${Date.now()}.jpg`;
 
-        try {
-            // Pass the CROPPED canvas to the smart compressor
-            const compressedBlob = await compressRecursive(croppedCanvas, targetBytes);
-            
-            // Handle Result
-            if (compressedURL) URL.revokeObjectURL(compressedURL);
-            compressedURL = URL.createObjectURL(compressedBlob);
-
-            // Update UI
-            document.getElementById('displayImage').src = compressedURL;
-            document.getElementById('displayImage').style.opacity = '1';
-            document.getElementById('compressedSize').innerText = (compressedBlob.size / 1024).toFixed(2) + " KB";
-            
-            // Tech stats
-            const qPercent = (compressedBlob.quality * 100).toFixed(0);
-            document.getElementById('qualityInfo').innerText = 
-                `Quality: ${qPercent}% | Res: ${compressedBlob.width}x${compressedBlob.height}`;
-
-            document.getElementById('downloadLink').href = compressedURL;
-
-        } catch (e) {
-            console.error(e);
-            alert("Compression failed");
-        }
+        // SAVE TO DB (Auto-Save)
+        const record = {
+            id: Date.now(),
+            blob: resultBlob,
+            name: `formfit_${Date.now()}.jpg`,
+            size: kbSize + " KB",
+            date: new Date().toLocaleString()
+        };
+        await db.save(record);
+        
+        // Refresh History List
+        loadHistoryUI();
     }
 
-    // --- RECURSIVE SMART ENGINE ---
-    // Note: We accept a 'sourceCanvas' here, which is our cropped image
-    async function compressRecursive(sourceCanvas, targetSize) {
-        let min = 0.0;
-        let max = 1.0;
-        let bestBlob = null;
-        let bestQuality = 0;
+    // --- HISTORY UI ---
+    async function loadHistoryUI() {
+        const items = await db.getAll();
+        const list = document.getElementById('historyList');
+        const clearBtn = document.getElementById('clearBtn');
+        
+        list.innerHTML = ''; // Clear current list
+        
+        if (items.length === 0) {
+            list.innerHTML = '<p class="text-center text-muted small">No saved files yet.</p>';
+            clearBtn.style.display = 'none';
+            return;
+        }
 
-        // 1. Binary Search for Quality
-        for (let i = 0; i < 8; i++) {
-            const mid = (min + max) / 2;
-            const blob = await getCanvasBlob(sourceCanvas, mid);
+        clearBtn.style.display = 'block';
+        
+        // Sort newest first
+        items.sort((a, b) => b.id - a.id).forEach(item => {
+            const url = URL.createObjectURL(item.blob);
             
-            if (blob.size <= targetSize) {
-                bestBlob = blob;
-                bestQuality = mid;
-                min = mid; 
-            } else {
-                max = mid; 
-            }
-        }
-
-        // 2. Decision: Accept if quality is decent (>15%) OR image is tiny
-        if ((bestBlob && bestQuality > 0.15) || sourceCanvas.width < 400) {
-            bestBlob.quality = bestQuality;
-            bestBlob.width = sourceCanvas.width;
-            bestBlob.height = sourceCanvas.height;
-            return bestBlob;
-        }
-
-        // 3. Fallback: Resize (Scale Down)
-        const newCanvas = document.createElement('canvas');
-        const scaleFactor = 0.75;
-        newCanvas.width = Math.floor(sourceCanvas.width * scaleFactor);
-        newCanvas.height = Math.floor(sourceCanvas.height * scaleFactor);
-        const ctx = newCanvas.getContext('2d');
-        // Draw the *source* canvas onto the smaller canvas
-        ctx.drawImage(sourceCanvas, 0, 0, newCanvas.width, newCanvas.height);
-
-        // Recursive call with smaller canvas
-        return await compressRecursive(newCanvas, targetSize);
-    }
-
-    function getCanvasBlob(canvas, quality) {
-        return new Promise((resolve) => {
-            canvas.toBlob((blob) => {
-                resolve(blob);
-            }, 'image/jpeg', quality);
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            div.innerHTML = `
+                <img src="${url}" class="history-thumb">
+                <div class="history-meta">
+                    <div class="fw-bold text-dark">${item.size}</div>
+                    <div class="text-muted" style="font-size:0.8em">${item.date}</div>
+                </div>
+                <a href="${url}" download="${item.name}" class="btn btn-sm btn-outline-primary">⬇️</a>
+                <button onclick="deleteItem(${item.id})" class="btn btn-sm btn-outline-danger">🗑️</button>
+            `;
+            list.appendChild(div);
         });
     }
 
-    // --- UTILS ---
-    function showOriginal() {
-        if(originalURL) document.getElementById('displayImage').src = originalURL;
+    async function deleteItem(id) {
+        if(confirm('Delete this file from history?')) {
+            await db.delete(id);
+            loadHistoryUI();
+        }
     }
-    function showCompressed() {
-        if(compressedURL) document.getElementById('displayImage').src = compressedURL;
+    
+    async function clearHistory() {
+        if(confirm('Clear all local history? This cannot be undone.')) {
+            await db.clear();
+            loadHistoryUI();
+        }
     }
-    function resetApp() {
-        location.reload(); 
+
+    // --- COMPRESSION ENGINE (Standard) ---
+    async function compressRecursive(canvas, targetSize) {
+        let min = 0.0, max = 1.0, bestBlob = null;
+        for (let i = 0; i < 7; i++) {
+            const mid = (min + max) / 2;
+            const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', mid));
+            if (blob.size <= targetSize) { bestBlob = blob; min = mid; }
+            else { max = mid; }
+        }
+        if (bestBlob || canvas.width < 400) return bestBlob;
+        
+        const newCanvas = document.createElement('canvas');
+        newCanvas.width = canvas.width * 0.8;
+        newCanvas.height = canvas.height * 0.8;
+        newCanvas.getContext('2d').drawImage(canvas, 0, 0, newCanvas.width, newCanvas.height);
+        return await compressRecursive(newCanvas, targetSize);
     }
+    
+    function resetApp() { location.reload(); }
 </script>
 
 </body>
